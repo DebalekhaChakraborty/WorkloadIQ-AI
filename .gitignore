@@ -5,6 +5,10 @@ __pycache__/
 .pytest_cache/
 .mypy_cache/
 .ruff_cache/
+.adk/
+frontend/node_modules/
+frontend/dist/
+*.tsbuildinfo
 
 outputs/
 workload_analysis/outputs/

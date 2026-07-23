@@ -11,7 +11,11 @@ from typing import Any, Dict, List, Optional
 import pandas as pd  # type: ignore
 from google.adk.tools import FunctionTool, ToolContext  # type: ignore
 
-from .evaluate_ticket import evaluate_ticket, PARAM_SPECS  # type: ignore
+from .evaluate_ticket import (  # type: ignore
+    evaluate_ticket,
+    PARAM_SPECS,
+    TICKET_QA_PASS_THRESHOLD,
+)
 from .normalize_columns import normalize_dataframe_with_report, normalize_ticket_dict  # type: ignore
 
 # -----------------------------------------------------------------------------
@@ -214,9 +218,82 @@ def _compute_batch_stats(results: List[Dict[str, Any]]) -> Dict[str, Any]:
         "evaluated_tickets": evaluated,
         "excluded_from_average": excluded,
         "avg_score": avg_score,
+        "pass_threshold": TICKET_QA_PASS_THRESHOLD,
         "pass_count": pass_count,
         "fail_count": fail_count,
         "fatal_count": fatal_count,
+    }
+
+
+def _compute_quality_insights(results: List[Dict[str, Any]]) -> Dict[str, Any]:
+    section_totals: Dict[str, Dict[str, float]] = {}
+    parameter_totals: Dict[str, Dict[str, Any]] = {}
+
+    for result in results:
+        if str(result.get("human_review_required", "NO")).upper() == "YES":
+            continue
+
+        for section, values in (result.get("sections") or {}).items():
+            bucket = section_totals.setdefault(section, {"score": 0.0, "max_points": 0.0})
+            bucket["score"] += float((values or {}).get("score") or 0)
+            bucket["max_points"] += float((values or {}).get("max_points") or 0)
+
+        for parameter in result.get("parameters") or []:
+            if not isinstance(parameter, dict):
+                continue
+            pid = str(parameter.get("id") or "")
+            if not pid:
+                continue
+            max_points = float(parameter.get("max_points") or 0)
+            score = float(parameter.get("score") or 0)
+            bucket = parameter_totals.setdefault(
+                pid,
+                {
+                    "id": pid,
+                    "label": parameter.get("label") or pid,
+                    "section": parameter.get("section") or "other",
+                    "lost_points": 0.0,
+                    "issue_count": 0,
+                },
+            )
+            bucket["lost_points"] += max(0.0, max_points - score)
+            if parameter.get("issue_flag"):
+                bucket["issue_count"] += 1
+
+    section_scores = []
+    for section, totals in section_totals.items():
+        maximum = totals["max_points"]
+        section_scores.append(
+            {
+                "section": section,
+                "score_pct": round((totals["score"] / maximum) * 100, 1) if maximum else 0.0,
+            }
+        )
+
+    opportunities = sorted(
+        parameter_totals.values(),
+        key=lambda item: (float(item["lost_points"]), int(item["issue_count"])),
+        reverse=True,
+    )[:8]
+    for item in opportunities:
+        item["lost_points"] = round(float(item["lost_points"]), 1)
+
+    ticket_preview = [
+        {
+            "ticket_id": result.get("ticket_id"),
+            "overall_score": result.get("overall_score"),
+            "verdict": result.get("verdict"),
+            "fatal_found": result.get("fatal_found"),
+            "summary_feedback": result.get("summary_feedback"),
+            "human_review_required": result.get("human_review_required", "NO"),
+        }
+        for result in results[:50]
+    ]
+
+    return {
+        "section_scores": sorted(section_scores, key=lambda item: item["score_pct"]),
+        "top_opportunities": opportunities,
+        "ticket_preview": ticket_preview,
     }
 
 
@@ -255,6 +332,7 @@ def batch_evaluate_csv(
                 "evaluated_tickets": 0,
                 "excluded_from_average": 0,
                 "avg_score": 0.0,
+                "pass_threshold": TICKET_QA_PASS_THRESHOLD,
                 "pass_count": 0,
                 "fail_count": 0,
                 "fatal_count": 0,
@@ -378,6 +456,7 @@ def batch_evaluate_csv(
 
         # 5) Stats + summary
         stats = _compute_batch_stats(results)
+        quality_insights = _compute_quality_insights(results)
 
         summary_text = (
             f"I have analyzed the CSV ticket data.\n\n"
@@ -397,6 +476,7 @@ def batch_evaluate_csv(
             "kind": "qa_batch",
             "summary_text": summary_text,
             "stats": stats,
+            "quality_insights": quality_insights,
             "output_csv_path": output_csv_path,
             "normalization_report": normalization_report,
         }
@@ -408,6 +488,7 @@ def batch_evaluate_csv(
         return {
             "summary_text": summary_text,
             "stats": stats,
+            "quality_insights": quality_insights,
             "job_id": job_id,
             "output_csv_path": output_csv_path,
             "normalization_report": normalization_report,

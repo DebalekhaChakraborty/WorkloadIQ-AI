@@ -11,9 +11,9 @@ from google.adk.tools import FunctionTool, ToolContext  # type: ignore
 from .normalize_columns import normalize_ticket_dict  # type: ignore
 
 
-TICKET_QA_MODEL = os.getenv("TICKET_QA_MODEL")
-TICKET_QA_PASS_THRESHOLD = int(os.getenv("TICKET_QA_PASS_THRESHOLD"))
-TICKET_QA_FATAL_THRESHOLD = int(os.getenv("TICKET_QA_FATAL_THRESHOLD"))  # kept for future use, not directly used right now
+TICKET_QA_MODEL = os.getenv("TICKET_QA_MODEL", "gemini-2.5-flash")
+TICKET_QA_PASS_THRESHOLD = int(os.getenv("TICKET_QA_PASS_THRESHOLD", "70"))
+TICKET_QA_FATAL_THRESHOLD = int(os.getenv("TICKET_QA_FATAL_THRESHOLD", "0"))  # kept for future use, not directly used right now
 
 
 

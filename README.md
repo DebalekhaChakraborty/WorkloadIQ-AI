@@ -1,6 +1,6 @@
 # WorkloadIQ
 
-WorkloadIQ is a standalone service-desk assessment application. It combines a native React workspace with the existing Python and Google ADK analysis core.
+WorkloadIQ is a standalone workload ticket assessment application. It combines a native React workspace with the existing Python and Google ADK analysis core.
 
 The product supports two assessment paths:
 

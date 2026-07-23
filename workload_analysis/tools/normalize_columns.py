@@ -373,8 +373,8 @@ def _build_theme_prompt(items: List[Dict[str, str]]) -> str:
 You are labeling IT support tickets with a short, human-friendly THEME.
 
 Rules:
-- Return a short theme label (2-6 words). Examples:
-  "Password / Account Lockout", "VPN Connectivity", "Software License Request", "Laptop Performance", "Email/Teams Issues"
+- Return a short theme label (2-6 words) derived only from the supplied ticket.
+- Do not copy or infer labels from these instructions.
 - Do NOT use generic ITSM type words like "Incident" or "Service Request" as themes.
 - Use "{_OTHER_BUCKET}" only if the content is truly unclear.
 - Return STRICT JSON only, no markdown.
@@ -934,13 +934,33 @@ def normalize_dataframe_with_report(
             combined_work_notes_col=combined_work_notes_col,
             progress_hook=progress_hook,
         )
-        df2 = df2.copy()
-        df2[NORMALIZE_LLM_CATEGORY_COL] = series
-        cols.category = NORMALIZE_LLM_CATEGORY_COL
         llm_meta = dict(meta)
-        llm_meta["used"] = True
-        if NORMALIZE_FORCE_SEMANTIC_CATEGORY and meta.get("reason") is None:
-            llm_meta["reason"] = "Forced semantic category derivation via NORMALIZE_FORCE_SEMANTIC_CATEGORY."
+        semantic_values = series.fillna("").astype(str).str.strip()
+        semantic_has_meaningful_values = bool(
+            semantic_values
+            .loc[
+                ~semantic_values.str.lower().isin(
+                    {"", "other", "unclear", "other / unclear", "(blank)"}
+                )
+            ]
+            .any()
+        )
+        semantic_is_usable = bool(
+            meta.get("enabled") and semantic_has_meaningful_values
+        )
+        if semantic_is_usable:
+            df2 = df2.copy()
+            df2[NORMALIZE_LLM_CATEGORY_COL] = series
+            cols.category = NORMALIZE_LLM_CATEGORY_COL
+            llm_meta["used"] = True
+            if NORMALIZE_FORCE_SEMANTIC_CATEGORY and meta.get("reason") is None:
+                llm_meta["reason"] = "Forced semantic category derivation via NORMALIZE_FORCE_SEMANTIC_CATEGORY."
+        else:
+            llm_meta["used"] = False
+            llm_meta["reason"] = (
+                meta.get("reason")
+                or "Semantic category derivation returned no usable values; preserved the detected source category."
+            )
     else:
         llm_meta["enabled"] = _vertex_ready()
         llm_meta["used"] = False

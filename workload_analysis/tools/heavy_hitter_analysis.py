@@ -894,6 +894,11 @@ def heavy_hitter_analyze(tool_context: ToolContext, filename: Optional[str] = No
         result_payload: Dict[str, Any] = {
             "job_id": job_id,
             "summary_text": "Heavy hitter analysis complete (LLM-infused).",
+            "total_tickets": total,
+            "detected_columns": cols.__dict__,
+            "top_categories": top_cat.to_dict("records"),
+            "top_category_subcategories": top_cat_sub.to_dict("records"),
+            "top_assignment_groups": top_group.to_dict("records"),
             "charts": charts,
             "output_csv_path": out_csv,
             "output_csv_filename": out_csv_filename,

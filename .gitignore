@@ -1,0 +1,14 @@
+.env
+*.env
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+outputs/
+workload_analysis/outputs/
+workload_analysis/tests/uploads/
+workload_analysis/tests/jobs/
+
+.DS_Store
